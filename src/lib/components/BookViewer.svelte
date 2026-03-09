@@ -64,33 +64,38 @@
 				updateReadingPosition(book.id, $currentPage);
 			});
 
-			// Forward touch/click events from epubjs iframe — attach ONCE
-			let iframeListenersAttached = false;
-			epubRendition.on('rendered', () => {
-				if (iframeListenersAttached) return;
+			// Re-attach touch/click listeners on each render (epubjs recreates iframe on spine navigation)
+			let iframeAbortController: AbortController | null = null;
+			epubRendition.on('rendered', (_section: any, _view: any) => {
+				// Abort previous listeners (old iframe/document)
+				if (iframeAbortController) {
+					iframeAbortController.abort();
+				}
+				iframeAbortController = new AbortController();
+				const signal = iframeAbortController.signal;
+
 				try {
 					const iframe = epubDiv?.querySelector('iframe');
 					if (!iframe?.contentDocument) return;
 					const doc = iframe.contentDocument;
-					iframeListenersAttached = true;
 
 					let iframeTouchStartX = 0;
-					doc.addEventListener('touchstart', (e: TouchEvent) => {
-						iframeTouchStartX = e.touches[0].clientX;
-					}, { passive: true });
-					doc.addEventListener('touchend', (e: TouchEvent) => {
-						const diff = e.changedTouches[0].clientX - iframeTouchStartX;
+					doc.addEventListener('touchstart', (e: Event) => {
+						iframeTouchStartX = (e as TouchEvent).touches[0].clientX;
+					}, { passive: true, signal });
+					doc.addEventListener('touchend', (e: Event) => {
+						const diff = (e as TouchEvent).changedTouches[0].clientX - iframeTouchStartX;
 						if (Math.abs(diff) > 50) {
-							if (diff < 0) nextPage(); else prevPage();
+							diff < 0 ? nextPage() : prevPage();
 						}
-					}, { passive: true });
-					doc.addEventListener('click', (e: MouseEvent) => {
-						const width = iframe.clientWidth || 300;
-						const x = e.clientX;
-						if (x < width * 0.25) prevPage();
-						else if (x > width * 0.75) nextPage();
+					}, { passive: true, signal });
+					doc.addEventListener('click', (e: Event) => {
+						const me = e as MouseEvent;
+						const width = (iframe as HTMLIFrameElement).clientWidth || 300;
+						if (me.clientX < width * 0.25) prevPage();
+						else if (me.clientX > width * 0.75) nextPage();
 						else $toolbarVisible = !$toolbarVisible;
-					});
+					}, { signal });
 				} catch { /* cross-origin iframe, skip */ }
 			});
 		} catch (e) {
