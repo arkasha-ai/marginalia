@@ -1,12 +1,14 @@
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
 
-// Serve everything from our own static files — no external CDN dependency
+// Serve model from our own static files — no HuggingFace dependency
 env.localModelPath = '/models/';
 env.allowLocalModels = true;
 env.allowRemoteModels = false;
 
-// Serve ONNX Runtime WASM files locally instead of jsdelivr CDN
+// Use plain WASM backend — disable WebGPU/JSEP to avoid dynamic import issues
 env.backends.onnx.wasm.wasmPaths = '/ort-wasm/';
+// @ts-ignore
+env.backends.onnx.wasm.numThreads = 1;
 
 let extractor: FeatureExtractionPipeline | null = null;
 let loading = false;
@@ -20,7 +22,8 @@ export async function initEmbeddings(): Promise<void> {
 	loadPromise = (async () => {
 		try {
 			extractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-small', {
-				dtype: 'q8' as any
+				dtype: 'q8' as any,
+				device: 'wasm' as any  // force plain WASM, avoid WebGPU/JSEP dynamic imports
 			});
 			loading = false;
 		} catch (e) {
