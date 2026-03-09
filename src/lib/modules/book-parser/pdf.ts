@@ -1,9 +1,9 @@
 import type { BookParser, BookMetadata, PageText } from './base';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Use locally served worker
+// Use CDN worker matching the installed version — no version mismatch
 if (typeof window !== 'undefined') {
-	pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+	pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 }
 
 export class PdfBookParser implements BookParser {
