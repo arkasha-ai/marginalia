@@ -26,6 +26,7 @@
 	"dependencies": {
 		"@huggingface/transformers": "^3.8.1",
 		"drizzle-orm": "^0.45.1",
+		"epubjs": "^0.3.93",
 		"pdfjs-dist": "^4.9.155",
 		"sql.js": "^1.14.1",
 		"uuid": "^13.0.0"

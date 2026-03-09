@@ -31,8 +31,8 @@ export function getFileDataWithFallback(bookId: string, filePath: string): Array
 
 export async function addBook(file: File): Promise<Book> {
 	const ext = getExtension(file.name);
-	if (ext !== 'pdf') {
-		throw new Error('Формат EPUB/FB2 пока не поддерживается, скоро добавим');
+	if (ext !== 'pdf' && ext !== 'epub' && ext !== 'fb2') {
+		throw new Error('Неподдерживаемый формат. Поддерживаются: PDF, EPUB, FB2');
 	}
 
 	const fileData = await file.arrayBuffer();

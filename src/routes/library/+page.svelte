@@ -96,7 +96,7 @@
 	<input
 		bind:this={fileInput}
 		type="file"
-		accept=".pdf"
+		accept=".pdf,.epub,.fb2"
 		on:change={handleFileSelect}
 		style="display: none"
 	/>
