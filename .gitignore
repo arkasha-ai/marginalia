@@ -6,3 +6,5 @@ build/
 
 # ML model (too large for git)
 static/models/
+
+static/ort-wasm/

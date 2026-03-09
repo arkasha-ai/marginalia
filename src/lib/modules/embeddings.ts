@@ -1,9 +1,12 @@
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
 
-// Serve model from our own static files — no HuggingFace dependency
+// Serve everything from our own static files — no external CDN dependency
 env.localModelPath = '/models/';
 env.allowLocalModels = true;
 env.allowRemoteModels = false;
+
+// Serve ONNX Runtime WASM files locally instead of jsdelivr CDN
+env.backends.onnx.wasm.wasmPaths = '/ort-wasm/';
 
 let extractor: FeatureExtractionPipeline | null = null;
 let loading = false;
