@@ -64,15 +64,7 @@
 				updateReadingPosition(book.id, $currentPage);
 			});
 
-			// Use epubjs built-in click event — fires once, no iframe double-firing
-			epubRendition.on('click', (e: MouseEvent) => {
-				const width = epubDiv?.clientWidth || 300;
-				if (e.clientX < width * 0.25) prevPage();
-				else if (e.clientX > width * 0.75) nextPage();
-				else $toolbarVisible = !$toolbarVisible;
-			});
-
-			// Swipe only via iframe touch (re-attach each render, no click handler here)
+			// Handle all navigation via iframe — capture phase to intercept before epubjs
 			let iframeAbortController: AbortController | null = null;
 			epubRendition.on('rendered', (_section: any, _view: any) => {
 				if (iframeAbortController) iframeAbortController.abort();
@@ -82,6 +74,18 @@
 					const iframe = epubDiv?.querySelector('iframe');
 					if (!iframe?.contentDocument) return;
 					const doc = iframe.contentDocument;
+					const iframeWidth = iframe.clientWidth || epubDiv?.clientWidth || 300;
+
+					// Click navigation (capture phase = before epubjs handles it)
+					doc.addEventListener('click', (e: Event) => {
+						const me = e as MouseEvent;
+						e.stopPropagation();
+						if (me.clientX < iframeWidth * 0.25) prevPage();
+						else if (me.clientX > iframeWidth * 0.75) nextPage();
+						else $toolbarVisible = !$toolbarVisible;
+					}, { capture: true, signal });
+
+					// Swipe navigation
 					let iframeTouchStartX = 0;
 					doc.addEventListener('touchstart', (e: Event) => {
 						iframeTouchStartX = (e as TouchEvent).touches[0].clientX;
