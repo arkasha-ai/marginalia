@@ -11,6 +11,7 @@
 	export let initialPage: number | null = null;
 
 	let canvas: HTMLCanvasElement;
+	let epubDiv: HTMLDivElement;
 	let container: HTMLDivElement;
 	let highlights: Highlight[] = [];
 	let showHighlightMenu = false;
@@ -19,18 +20,59 @@
 	let showNoteModal = false;
 	let noteText = '';
 
+	const isEpub = book.format === 'epub';
+
 	$currentPage = initialPage ?? book.lastReadPage;
 	$totalPages = book.totalPages;
 
 	const parser = getParser(book.filePath);
 	const fileData = getFileDataWithFallback(book.id, book.filePath);
 
+	// epubjs rendition for EPUB
+	let epubRendition: any = null;
+
+	async function initEpubRendition() {
+		if (!isEpub || !epubDiv || !fileData) return;
+		try {
+			const ePub = (await import('epubjs')).default;
+			const epubBook = ePub(fileData.slice(0));
+			await epubBook.ready;
+
+			epubRendition = epubBook.renderTo(epubDiv, {
+				width: '100%',
+				height: '100%',
+				spread: 'none',
+				flow: 'paginated'
+			});
+
+			// Navigate to saved page (spine index)
+			const spineItems = (epubBook.spine as any).spineItems ?? (epubBook.spine as any).items ?? [];
+			const idx = Math.min($currentPage - 1, spineItems.length - 1);
+			const item = spineItems[idx];
+			if (item?.href) {
+				await epubRendition.display(item.href);
+			} else {
+				await epubRendition.display();
+			}
+
+			// Track page changes
+			epubRendition.on('relocated', (location: any) => {
+				const index = location?.start?.index ?? 0;
+				$currentPage = index + 1;
+				updateReadingPosition(book.id, $currentPage);
+			});
+		} catch (e) {
+			console.error('EPUB rendition error:', e);
+		}
+	}
+
 	async function renderCurrentPage() {
+		if (isEpub) return; // EPUB uses rendition
 		if (!canvas || !fileData) return;
 		$isRendering = true;
 		try {
 			const containerWidth = container?.clientWidth || 800;
-			const scale = containerWidth / 612 * 1.5; // 612 is default PDF page width
+			const scale = containerWidth / 612 * 1.5;
 			await parser.renderPage(fileData, $currentPage, canvas, scale, book.id);
 			highlights = getForPage(book.id, $currentPage);
 		} catch (e) {
@@ -43,29 +85,41 @@
 		if (page < 1 || page > $totalPages) return;
 		$currentPage = page;
 		updateReadingPosition(book.id, page);
-		renderCurrentPage();
+
+		if (isEpub && epubRendition) {
+			// Navigate by spine index
+			const bookInstance = (epubRendition as any).book;
+			const spineItems = bookInstance?.spine?.spineItems ?? bookInstance?.spine?.items ?? [];
+			const item = spineItems[page - 1];
+			if (item?.href) epubRendition.display(item.href);
+		} else {
+			renderCurrentPage();
+		}
 	}
 
 	function nextPage() {
-		goToPage($currentPage + 1);
+		if (isEpub && epubRendition) {
+			epubRendition.next();
+		} else {
+			goToPage($currentPage + 1);
+		}
 	}
 
 	function prevPage() {
-		goToPage($currentPage - 1);
+		if (isEpub && epubRendition) {
+			epubRendition.prev();
+		} else {
+			goToPage($currentPage - 1);
+		}
 	}
 
 	function handleCanvasClick(e: MouseEvent) {
 		const rect = container.getBoundingClientRect();
 		const x = e.clientX - rect.left;
 		const width = rect.width;
-
-		if (x < width * 0.25) {
-			prevPage();
-		} else if (x > width * 0.75) {
-			nextPage();
-		} else {
-			$toolbarVisible = !$toolbarVisible;
-		}
+		if (x < width * 0.25) prevPage();
+		else if (x > width * 0.75) nextPage();
+		else $toolbarVisible = !$toolbarVisible;
 	}
 
 	function handleSelection() {
@@ -74,10 +128,10 @@
 			selectedText = sel.toString().trim();
 			const range = sel.getRangeAt(0);
 			const rect = range.getBoundingClientRect();
-			highlightMenuPos = {
-				x: rect.left + rect.width / 2,
-				y: rect.top - 10
-			};
+			// Clamp menu position to stay within viewport
+			const menuX = Math.max(60, Math.min(rect.left + rect.width / 2, window.innerWidth - 60));
+			const menuY = Math.max(50, rect.top - 10);
+			highlightMenuPos = { x: menuX, y: menuY };
 			showHighlightMenu = true;
 		}
 	}
@@ -85,12 +139,7 @@
 	function saveHighlight(withNote: boolean) {
 		if (!selectedText) return;
 		showHighlightMenu = false;
-
-		if (withNote) {
-			showNoteModal = true;
-			return;
-		}
-
+		if (withNote) { showNoteModal = true; return; }
 		createHighlight({
 			bookId: book.id,
 			pageNumber: $currentPage,
@@ -98,7 +147,6 @@
 			startOffset: 0,
 			endOffset: selectedText.length
 		});
-
 		highlights = getForPage(book.id, $currentPage);
 		window.getSelection()?.removeAllRanges();
 		selectedText = '';
@@ -113,7 +161,6 @@
 			endOffset: selectedText.length,
 			note: noteText || undefined
 		});
-
 		highlights = getForPage(book.id, $currentPage);
 		window.getSelection()?.removeAllRanges();
 		selectedText = '';
@@ -121,42 +168,42 @@
 		showNoteModal = false;
 	}
 
-	// Touch swipe handling
 	let touchStartX = 0;
-	function handleTouchStart(e: TouchEvent) {
-		touchStartX = e.touches[0].clientX;
-	}
+	function handleTouchStart(e: TouchEvent) { touchStartX = e.touches[0].clientX; }
 	function handleTouchEnd(e: TouchEvent) {
 		const diff = e.changedTouches[0].clientX - touchStartX;
 		if (Math.abs(diff) > 50) {
-			if (diff < 0) nextPage();
-			else prevPage();
+			if (diff < 0) nextPage(); else prevPage();
 		}
 	}
 
-	// Keyboard navigation
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextPage();
 		else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevPage();
 	}
 
 	function handleSlider(e: Event) {
-		const value = parseInt((e.target as HTMLInputElement).value);
-		goToPage(value);
+		goToPage(parseInt((e.target as HTMLInputElement).value));
 	}
 
-	onMount(() => {
-		renderCurrentPage();
+	onMount(async () => {
+		if (isEpub) {
+			await initEpubRendition();
+		} else {
+			renderCurrentPage();
+		}
 		document.addEventListener('keydown', handleKeydown);
 	});
 
 	onDestroy(() => {
 		document.removeEventListener('keydown', handleKeydown);
+		if (epubRendition) {
+			try { epubRendition.destroy(); } catch {}
+		}
 	});
 </script>
 
 <div class="viewer" bind:this={container}>
-	<!-- Toolbar -->
 	{#if $toolbarVisible}
 		<div class="toolbar">
 			<a href="/library" class="back-btn">←</a>
@@ -165,9 +212,8 @@
 		</div>
 	{/if}
 
-	<!-- Canvas area -->
 	<div
-		class="canvas-area"
+		class="content-area"
 		role="button"
 		tabindex="0"
 		on:click={handleCanvasClick}
@@ -176,23 +222,22 @@
 		on:touchend={handleTouchEnd}
 	>
 		{#if $isRendering}
-			<div class="loading-overlay">
-				<div class="spinner"></div>
-			</div>
+			<div class="loading-overlay"><div class="spinner"></div></div>
 		{/if}
-		<canvas bind:this={canvas}></canvas>
 
-		<!-- Highlight overlays -->
-		{#each highlights as h}
-			<div class="highlight-marker" title={h.note || h.text}>
-				{#if h.note}
-					<span class="note-icon">📝</span>
-				{/if}
-			</div>
-		{/each}
+		{#if isEpub}
+			<!-- epubjs renders HTML/images natively in this div -->
+			<div class="epub-container" bind:this={epubDiv}></div>
+		{:else}
+			<canvas bind:this={canvas}></canvas>
+			{#each highlights as h}
+				<div class="highlight-marker" title={h.note || h.text}>
+					{#if h.note}<span class="note-icon">📝</span>{/if}
+				</div>
+			{/each}
+		{/if}
 	</div>
 
-	<!-- Highlight context menu -->
 	{#if showHighlightMenu}
 		<div class="highlight-menu" style="left: {highlightMenuPos.x}px; top: {highlightMenuPos.y}px">
 			<button on:click={() => saveHighlight(false)}>Выделить</button>
@@ -201,35 +246,20 @@
 		</div>
 	{/if}
 
-	<!-- Bottom bar -->
 	{#if $toolbarVisible}
 		<div class="bottom-bar">
-			<input
-				type="range"
-				min="1"
-				max={$totalPages}
-				value={$currentPage}
-				on:input={handleSlider}
-				class="page-slider"
-			/>
-			<div class="page-info">
-				Стр. {$currentPage} из {$totalPages}
-			</div>
+			<input type="range" min="1" max={$totalPages} value={$currentPage}
+				on:input={handleSlider} class="page-slider" />
+			<div class="page-info">Стр. {$currentPage} из {$totalPages}</div>
 		</div>
 	{/if}
 
-	<!-- Note modal -->
 	{#if showNoteModal}
 		<div class="modal-overlay" on:click|self={() => { showNoteModal = false; }}>
 			<div class="modal">
 				<h3>Заметка</h3>
 				<p class="selected-preview">«{selectedText.slice(0, 100)}{selectedText.length > 100 ? '...' : ''}»</p>
-				<textarea
-					bind:value={noteText}
-					placeholder="Ваша заметка..."
-					maxlength="2000"
-					rows="4"
-				></textarea>
+				<textarea bind:value={noteText} placeholder="Ваша заметка..." maxlength="2000" rows="4"></textarea>
 				<div class="modal-actions">
 					<button class="btn-secondary" on:click={() => { showNoteModal = false; noteText = ''; }}>Отмена</button>
 					<button class="btn-primary" on:click={saveNote}>Сохранить</button>
@@ -251,9 +281,7 @@
 	}
 	.toolbar {
 		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
+		top: 0; left: 0; right: 0;
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
@@ -275,13 +303,18 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.canvas-area {
+	.content-area {
 		flex: 1;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		overflow: auto;
 		position: relative;
+	}
+	.epub-container {
+		width: 100%;
+		height: 100%;
+		background: white;
 	}
 	canvas {
 		max-width: 100%;
@@ -306,9 +339,7 @@
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
 	}
-	@keyframes spin {
-		to { transform: rotate(360deg); }
-	}
+	@keyframes spin { to { transform: rotate(360deg); } }
 	.highlight-menu {
 		position: fixed;
 		transform: translate(-50%, -100%);
@@ -327,29 +358,18 @@
 		border-radius: 0.25rem;
 		white-space: nowrap;
 	}
-	.highlight-menu button:hover {
-		background: rgba(255,255,255,0.15);
-	}
-	.highlight-marker {
-		position: absolute;
-	}
-	.note-icon {
-		font-size: 0.75rem;
-	}
+	.highlight-menu button:hover { background: rgba(255,255,255,0.15); }
+	.highlight-marker { position: absolute; }
+	.note-icon { font-size: 0.75rem; }
 	.bottom-bar {
 		position: absolute;
-		bottom: 0;
-		left: 0;
-		right: 0;
+		bottom: 0; left: 0; right: 0;
 		padding: 0.75rem 1rem;
 		background: var(--card);
 		box-shadow: 0 -2px 8px var(--card-shadow);
 		z-index: 10;
 	}
-	.page-slider {
-		width: 100%;
-		accent-color: var(--primary);
-	}
+	.page-slider { width: 100%; accent-color: var(--primary); }
 	.page-info {
 		text-align: center;
 		font-size: 0.85rem;
@@ -372,10 +392,7 @@
 		width: min(90vw, 400px);
 		box-shadow: 0 8px 32px rgba(0,0,0,0.2);
 	}
-	.modal h3 {
-		margin-bottom: 0.75rem;
-		font-weight: 600;
-	}
+	.modal h3 { margin-bottom: 0.75rem; font-weight: 600; }
 	.selected-preview {
 		font-family: 'Lora', serif;
 		font-style: italic;
