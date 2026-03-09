@@ -2,6 +2,47 @@ import { CREATE_TABLES_SQL, type Book, type Chunk, type Highlight, type Highligh
 
 let db: any = null;
 
+const IDB_DB_NAME = 'marginalia';
+const IDB_STORE = 'sqliteDb';
+const IDB_KEY = 'db';
+
+async function loadFromIdb(): Promise<Uint8Array | null> {
+	return new Promise((resolve) => {
+		const req = indexedDB.open(IDB_DB_NAME, 1);
+		req.onupgradeneeded = (e: any) => e.target.result.createObjectStore(IDB_STORE);
+		req.onsuccess = (e: any) => {
+			const tx = e.target.result.transaction(IDB_STORE, 'readonly');
+			const get = tx.objectStore(IDB_STORE).get(IDB_KEY);
+			get.onsuccess = () => resolve(get.result ? new Uint8Array(get.result) : null);
+			get.onerror = () => resolve(null);
+		};
+		req.onerror = () => resolve(null);
+	});
+}
+
+async function saveToIdb(data: Uint8Array): Promise<void> {
+	return new Promise((resolve) => {
+		const req = indexedDB.open(IDB_DB_NAME, 1);
+		req.onupgradeneeded = (e: any) => e.target.result.createObjectStore(IDB_STORE);
+		req.onsuccess = (e: any) => {
+			const tx = e.target.result.transaction(IDB_STORE, 'readwrite');
+			tx.objectStore(IDB_STORE).put(data.buffer, IDB_KEY);
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => resolve();
+		};
+		req.onerror = () => resolve();
+	});
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function scheduleSave(delayMs = 2000): void {
+	if (saveTimer) clearTimeout(saveTimer);
+	saveTimer = setTimeout(() => {
+		if (db) saveToIdb(db.export()).catch(() => {});
+	}, delayMs);
+}
+
 export async function initDb(): Promise<void> {
 	if (db) return;
 	
@@ -20,8 +61,15 @@ export async function initDb(): Promise<void> {
 		locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm'
 	});
 	
-	db = new SQL.Database();
-	db.run(CREATE_TABLES_SQL);
+	const saved = await loadFromIdb();
+	if (saved) {
+		db = new SQL.Database(saved);
+		// Run migrations in case schema changed
+		db.run(CREATE_TABLES_SQL.replace(/CREATE TABLE /g, 'CREATE TABLE IF NOT EXISTS '));
+	} else {
+		db = new SQL.Database();
+		db.run(CREATE_TABLES_SQL);
+	}
 }
 
 export function getDb() {
@@ -56,6 +104,7 @@ export function insertBook(book: Omit<Book, 'createdAt' | 'updatedAt'>): Book {
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[book.id, book.title, book.filePath, book.format, book.coverDataUrl, book.totalPages, book.lastReadPage, book.indexingStatus, book.indexingProgress, book.fileSizeBytes, book.lastOpenedAt, now, now]
 	);
+	scheduleSave();
 	return { ...book, createdAt: now, updatedAt: now } as Book;
 }
 
@@ -84,10 +133,12 @@ export function updateBook(id: string, data: Partial<Book>): void {
 	values.push(id);
 
 	db.run(`UPDATE books SET ${fields.join(', ')} WHERE id = ?`, values);
+	scheduleSave();
 }
 
 export function deleteBook(id: string): void {
 	db.run('DELETE FROM books WHERE id = ?', [id]);
+	scheduleSave(500);
 }
 
 // --- Chunks ---
@@ -102,6 +153,7 @@ export function insertChunks(chunks: Array<Omit<Chunk, 'createdAt'>>): void {
 			[c.id, c.bookId, c.pageNumber, c.chunkIndex, c.text, embBlob, c.charOffsetStart, c.charOffsetEnd, now]
 		);
 	}
+	scheduleSave(3000); // debounce 3s during heavy indexing
 }
 
 export function getAllChunksWithEmbeddings(): Array<{ id: string; bookId: string; bookTitle: string; pageNumber: number; text: string; embedding: Float32Array }> {
@@ -130,6 +182,7 @@ export function getAllChunksWithEmbeddings(): Array<{ id: string; bookId: string
 
 export function deleteChunksByBook(bookId: string): void {
 	db.run('DELETE FROM chunks WHERE book_id = ?', [bookId]);
+	scheduleSave(500);
 }
 
 export function getLastIndexedPage(bookId: string): number {
@@ -183,17 +236,20 @@ export function insertHighlight(h: Omit<Highlight, 'createdAt' | 'updatedAt'>): 
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[h.id, h.bookId, h.pageNumber, h.text, h.startOffset, h.endOffset, h.color, h.note, now, now]
 	);
+	scheduleSave();
 	return { ...h, createdAt: now, updatedAt: now };
 }
 
 export function updateHighlight(id: string, data: { note?: string | null }): void {
 	if ('note' in data) {
 		db.run('UPDATE highlights SET note = ?, updated_at = ? WHERE id = ?', [data.note, new Date().toISOString(), id]);
+		scheduleSave();
 	}
 }
 
 export function deleteHighlight(id: string): void {
 	db.run('DELETE FROM highlights WHERE id = ?', [id]);
+	scheduleSave(500);
 }
 
 // --- Helpers ---
