@@ -2,6 +2,7 @@ import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/tran
 
 // Serve model from our own static files — no HuggingFace dependency
 env.localModelPath = '/models/';
+env.allowLocalModels = true;
 env.allowRemoteModels = false;
 
 let extractor: FeatureExtractionPipeline | null = null;
