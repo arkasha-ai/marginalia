@@ -42,7 +42,9 @@
 				width: '100%',
 				height: '100%',
 				spread: 'none',
-				flow: 'paginated'
+				flow: 'paginated',
+				method: 'blobUrl',
+				allowScriptedContent: true
 			});
 
 			// Navigate to saved page (spine index)
