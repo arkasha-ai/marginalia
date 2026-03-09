@@ -134,21 +134,8 @@
 		}
 	}
 
-	function nextPage() {
-		if (isEpub && epubRendition) {
-			epubRendition.next();
-		} else {
-			goToPage($currentPage + 1);
-		}
-	}
-
-	function prevPage() {
-		if (isEpub && epubRendition) {
-			epubRendition.prev();
-		} else {
-			goToPage($currentPage - 1);
-		}
-	}
+	function nextPage() { goToPage($currentPage + 1); }
+	function prevPage() { goToPage($currentPage - 1); }
 
 	function handleCanvasClick(e: MouseEvent) {
 		const rect = container.getBoundingClientRect();
