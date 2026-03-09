@@ -64,12 +64,15 @@
 				updateReadingPosition(book.id, $currentPage);
 			});
 
-			// Forward touch/click events from epubjs iframe to parent handlers
+			// Forward touch/click events from epubjs iframe — attach ONCE
+			let iframeListenersAttached = false;
 			epubRendition.on('rendered', () => {
+				if (iframeListenersAttached) return;
 				try {
 					const iframe = epubDiv?.querySelector('iframe');
 					if (!iframe?.contentDocument) return;
 					const doc = iframe.contentDocument;
+					iframeListenersAttached = true;
 
 					let iframeTouchStartX = 0;
 					doc.addEventListener('touchstart', (e: TouchEvent) => {
