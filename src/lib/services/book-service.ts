@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getParser, getExtension } from '$lib/modules/book-parser';
-import { insertBook, updateBook, deleteBook, getBooks, getBook } from '$lib/db';
+import { insertBook, updateBook, deleteBook, getBooks, getBook, getIncompleteBooks, getBookFileData } from '$lib/db';
 import { indexBook } from '$lib/modules/indexer';
 import { indexingProgress } from '$lib/stores/indexing';
 import type { Book } from '$lib/db/schema';
@@ -37,6 +37,7 @@ export async function addBook(file: File): Promise<Book> {
 		id: bookId,
 		title,
 		filePath,
+		fileData: new Uint8Array(fileData),
 		format: metadata.format,
 		coverDataUrl,
 		totalPages: metadata.totalPages,
@@ -87,3 +88,28 @@ export function getBookById(bookId: string): Book | null {
 }
 
 export { getFileData as getBookFileData };
+
+export function resumeIndexing(): void {
+	const incomplete = getIncompleteBooks();
+	for (const book of incomplete) {
+		const fileData = getBookFileData(book.id);
+		if (!fileData) {
+			// No file data — reset to error
+			updateBook(book.id, { indexingStatus: 'error' });
+			continue;
+		}
+		// Store in memory for reader
+		fileStore.set(book.filePath, fileData);
+		// Restart indexing from last indexed page
+		setTimeout(() => {
+			indexBook(book.id, fileData, (progress) => {
+				indexingProgress.set(progress);
+			}).then(() => {
+				indexingProgress.set(null);
+			}).catch((e) => {
+				console.error(e);
+				indexingProgress.set(null);
+			});
+		}, 500);
+	}
+}

@@ -64,8 +64,8 @@ export async function initDb(): Promise<void> {
 	const saved = await loadFromIdb();
 	if (saved) {
 		db = new SQL.Database(saved);
-		// Run migrations in case schema changed
-		db.run(CREATE_TABLES_SQL.replace(/CREATE TABLE /g, 'CREATE TABLE IF NOT EXISTS '));
+		// Run migrations for new columns
+		try { db.run('ALTER TABLE books ADD COLUMN file_data BLOB'); } catch { /* already exists */ }
 	} else {
 		db = new SQL.Database();
 		db.run(CREATE_TABLES_SQL);
@@ -99,13 +99,26 @@ export function getBook(id: string): Book | null {
 
 export function insertBook(book: Omit<Book, 'createdAt' | 'updatedAt'>): Book {
 	const now = new Date().toISOString();
+	const fileBlob = book.fileData ? new Uint8Array(book.fileData) : null;
 	db.run(
-		`INSERT INTO books (id, title, file_path, format, cover_data_url, total_pages, last_read_page, indexing_status, indexing_progress, file_size_bytes, last_opened_at, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		[book.id, book.title, book.filePath, book.format, book.coverDataUrl, book.totalPages, book.lastReadPage, book.indexingStatus, book.indexingProgress, book.fileSizeBytes, book.lastOpenedAt, now, now]
+		`INSERT INTO books (id, title, file_path, file_data, format, cover_data_url, total_pages, last_read_page, indexing_status, indexing_progress, file_size_bytes, last_opened_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[book.id, book.title, book.filePath, fileBlob, book.format, book.coverDataUrl, book.totalPages, book.lastReadPage, book.indexingStatus, book.indexingProgress, book.fileSizeBytes, book.lastOpenedAt, now, now]
 	);
 	scheduleSave();
 	return { ...book, createdAt: now, updatedAt: now } as Book;
+}
+
+export function getBookFileData(bookId: string): ArrayBuffer | null {
+	const stmt = db.prepare('SELECT file_data FROM books WHERE id = ?');
+	stmt.bind([bookId]);
+	if (stmt.step()) {
+		const row = stmt.getAsObject();
+		stmt.free();
+		if (row.file_data) return new Uint8Array(row.file_data as any).buffer;
+	}
+	stmt.free();
+	return null;
 }
 
 export function updateBook(id: string, data: Partial<Book>): void {
@@ -136,6 +149,12 @@ export function updateBook(id: string, data: Partial<Book>): void {
 	scheduleSave();
 }
 
+export function getIncompleteBooks(): Book[] {
+	const results = db.exec("SELECT * FROM books WHERE indexing_status = 'in_progress'");
+	if (!results.length) return [];
+	return results[0].values.map((row: any[]) => rowToBook(results[0].columns, row));
+}
+
 export function deleteBook(id: string): void {
 	db.run('DELETE FROM books WHERE id = ?', [id]);
 	scheduleSave(500);
@@ -153,7 +172,7 @@ export function insertChunks(chunks: Array<Omit<Chunk, 'createdAt'>>): void {
 			[c.id, c.bookId, c.pageNumber, c.chunkIndex, c.text, embBlob, c.charOffsetStart, c.charOffsetEnd, now]
 		);
 	}
-	scheduleSave(3000); // debounce 3s during heavy indexing
+	scheduleSave(800); // save after each page batch during indexing
 }
 
 export function getAllChunksWithEmbeddings(): Array<{ id: string; bookId: string; bookTitle: string; pageNumber: number; text: string; embedding: Float32Array }> {
@@ -265,6 +284,7 @@ function objToBook(row: any): Book {
 		id: row.id,
 		title: row.title,
 		filePath: row.file_path,
+		fileData: undefined, // don't load blob by default — use getBookFileData()
 		format: row.format,
 		coverDataUrl: row.cover_data_url,
 		totalPages: row.total_pages,

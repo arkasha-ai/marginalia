@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import BookCard from '$lib/components/BookCard.svelte';
 	import { books, dbReady } from '$lib/stores/library';
-	import { getLibrary, addBook, removeBook, openBook } from '$lib/services/book-service';
+	import { getLibrary, addBook, removeBook, openBook, resumeIndexing } from '$lib/services/book-service';
 
 	let fileInput: HTMLInputElement;
 	let showDeleteDialog = false;
@@ -17,7 +17,7 @@
 
 	onMount(() => {
 		loadBooks();
-		// Poll for indexing progress updates
+		resumeIndexing(); // restart any interrupted indexing
 		const interval = setInterval(loadBooks, 2000);
 		return () => clearInterval(interval);
 	});

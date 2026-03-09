@@ -4,6 +4,7 @@ export interface Book {
 	id: string;
 	title: string;
 	filePath: string;
+	fileData?: Uint8Array | null;
 	format: 'pdf' | 'epub' | 'fb2';
 	coverDataUrl: string | null;
 	totalPages: number;
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS books (
 	id TEXT PRIMARY KEY,
 	title TEXT NOT NULL,
 	file_path TEXT NOT NULL UNIQUE,
+	file_data BLOB,
 	format TEXT NOT NULL,
 	cover_data_url TEXT,
 	total_pages INTEGER NOT NULL,
