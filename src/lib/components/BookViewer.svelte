@@ -63,6 +63,33 @@
 				$currentPage = index + 1;
 				updateReadingPosition(book.id, $currentPage);
 			});
+
+			// Forward touch/click events from epubjs iframe to parent handlers
+			epubRendition.on('rendered', () => {
+				try {
+					const iframe = epubDiv?.querySelector('iframe');
+					if (!iframe?.contentDocument) return;
+					const doc = iframe.contentDocument;
+
+					let iframeTouchStartX = 0;
+					doc.addEventListener('touchstart', (e: TouchEvent) => {
+						iframeTouchStartX = e.touches[0].clientX;
+					}, { passive: true });
+					doc.addEventListener('touchend', (e: TouchEvent) => {
+						const diff = e.changedTouches[0].clientX - iframeTouchStartX;
+						if (Math.abs(diff) > 50) {
+							if (diff < 0) nextPage(); else prevPage();
+						}
+					}, { passive: true });
+					doc.addEventListener('click', (e: MouseEvent) => {
+						const width = iframe.clientWidth || 300;
+						const x = e.clientX;
+						if (x < width * 0.25) prevPage();
+						else if (x > width * 0.75) nextPage();
+						else $toolbarVisible = !$toolbarVisible;
+					});
+				} catch { /* cross-origin iframe, skip */ }
+			});
 		} catch (e) {
 			console.error('EPUB rendition error:', e);
 		}
