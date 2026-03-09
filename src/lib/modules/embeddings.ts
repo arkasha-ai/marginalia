@@ -1,4 +1,8 @@
-import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers';
+import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
+
+// Serve model from our own static files — no HuggingFace dependency
+env.localModelPath = '/models/';
+env.allowRemoteModels = false;
 
 let extractor: FeatureExtractionPipeline | null = null;
 let loading = false;
