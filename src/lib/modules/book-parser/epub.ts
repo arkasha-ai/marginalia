@@ -104,28 +104,12 @@ export class EpubBookParser implements BookParser {
 
 	async extractText(fileData: ArrayBuffer, pageNumber: number, bookId?: string): Promise<PageText> {
 		const book = await this.getBook(fileData, bookId);
-		const spineItems = (book.spine as any).spineItems;
-		if (!spineItems) return { fullText: '', items: [] };
-
-		// pageNumber is 1-based; spine items are 0-based
+		const spineItems = (book.spine as any).spineItems ?? (book.spine as any).items ?? [];
 		const index = pageNumber - 1;
-		if (index < 0 || index >= spineItems.length) {
-			return { fullText: '', items: [] };
-		}
+		if (index < 0 || index >= spineItems.length) return { fullText: '', items: [] };
 
-		try {
-			const section = book.spine.get(index);
-			if (!section) return { fullText: '', items: [] };
-
-			const doc = await section.load(book.load.bind(book));
-			// doc is a Document — extract text content
-			const body = (doc as unknown as Document).body ?? (doc as any).documentElement;
-			const fullText = body?.textContent?.trim() ?? '';
-
-			return { fullText, items: [] };
-		} catch {
-			return { fullText: '', items: [] };
-		}
+		const fullText = await this.loadSpineText(book, index);
+		return { fullText, items: [] };
 	}
 
 	async renderPage(
@@ -136,73 +120,117 @@ export class EpubBookParser implements BookParser {
 		bookId?: string
 	): Promise<void> {
 		const book = await this.getBook(fileData, bookId);
-		const spineItems = (book.spine as any).spineItems;
+		const spineItems = (book.spine as any).spineItems ?? (book.spine as any).items ?? [];
+
+		// Set canvas dimensions explicitly (unlike PDF, epub has no viewport)
+		const container = canvas.parentElement;
+		const width = container?.clientWidth || canvas.offsetWidth || 600;
+		const height = Math.round(width * 1.41); // A4 ratio
+		canvas.width = width;
+		canvas.height = height;
 
 		const ctx = canvas.getContext('2d')!;
-		const width = canvas.width || 400;
-		const height = canvas.height || 600;
 
-		// Clear canvas with paper background
+		// Paper background
 		ctx.fillStyle = '#faf6f0';
 		ctx.fillRect(0, 0, width, height);
 
-		if (!spineItems) return;
+		if (!spineItems.length) {
+			this.drawError(ctx, width, 'Не удалось загрузить EPUB');
+			return;
+		}
 
 		const index = pageNumber - 1;
 		if (index < 0 || index >= spineItems.length) {
-			ctx.fillStyle = '#999';
-			ctx.font = '16px Outfit, sans-serif';
-			ctx.fillText('Страница не найдена', 20, 40);
+			this.drawError(ctx, width, 'Страница не найдена');
 			return;
 		}
 
 		try {
-			const section = book.spine.get(index);
-			if (!section) return;
+			const text = await this.loadSpineText(book, index);
 
-			const doc = await section.load(book.load.bind(book));
-			const body = (doc as unknown as Document).body ?? (doc as any).documentElement;
-			const text = body?.textContent?.trim() ?? '';
-
-			if (!text) return;
-
-			// Render text on canvas with wrapping
-			ctx.fillStyle = '#333';
-			ctx.font = '14px Outfit, sans-serif';
-			const lineHeight = 22;
-			const margin = 20;
-			const maxWidth = width - margin * 2;
-			let y = margin + lineHeight;
-
-			const paragraphs = text.split(/\n+/);
-			for (const para of paragraphs) {
-				if (y > height - margin) break;
-
-				const words = para.split(/\s+/);
-				let line = '';
-
-				for (const word of words) {
-					if (y > height - margin) break;
-					const testLine = line ? `${line} ${word}` : word;
-					if (ctx.measureText(testLine).width > maxWidth && line) {
-						ctx.fillText(line, margin, y);
-						line = word;
-						y += lineHeight;
-					} else {
-						line = testLine;
-					}
-				}
-				if (line && y <= height - margin) {
-					ctx.fillText(line, margin, y);
-					y += lineHeight;
-				}
-				// Paragraph spacing
-				y += lineHeight * 0.3;
+			if (!text) {
+				this.drawError(ctx, width, 'Глава пуста');
+				return;
 			}
-		} catch {
-			ctx.fillStyle = '#999';
-			ctx.font = '16px Outfit, sans-serif';
-			ctx.fillText('Ошибка загрузки главы', 20, 40);
+
+			this.drawText(ctx, text, width, height);
+		} catch (e) {
+			console.error('EPUB render error:', e);
+			this.drawError(ctx, width, 'Ошибка загрузки главы');
 		}
+	}
+
+	private async loadSpineText(book: any, index: number): Promise<string> {
+		try {
+			// Method 1: section.load()
+			const section = book.spine.get(index);
+			if (section) {
+				const doc = await section.load(book.load.bind(book));
+				const body = (doc as any)?.body ?? (doc as any)?.documentElement;
+				const text = body?.textContent?.replace(/\s+/g, ' ').trim();
+				if (text) return text;
+			}
+		} catch { /* fall through */ }
+
+		try {
+			// Method 2: book.resources / direct URL load
+			const spineItems = (book.spine as any).spineItems ?? (book.spine as any).items ?? [];
+			const item = spineItems[index];
+			if (item?.href) {
+				const contents = await book.load(item.href);
+				if (typeof contents === 'string') {
+					const parser = new DOMParser();
+					const doc = parser.parseFromString(contents, 'text/html');
+					return doc.body?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+				}
+				if (contents?.body) {
+					return (contents as Document).body.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+				}
+			}
+		} catch { /* fall through */ }
+
+		return '';
+	}
+
+	private drawText(ctx: CanvasRenderingContext2D, text: string, width: number, height: number): void {
+		ctx.fillStyle = '#2c2c2c';
+		ctx.font = '16px Georgia, serif';
+		const lineHeight = 26;
+		const margin = 28;
+		const maxWidth = width - margin * 2;
+		let y = margin + lineHeight;
+
+		const paragraphs = text.split(/\n+/);
+		for (const para of paragraphs) {
+			if (y > height - margin) break;
+			const trimmed = para.trim();
+			if (!trimmed) { y += lineHeight * 0.5; continue; }
+
+			const words = trimmed.split(/\s+/);
+			let line = '';
+			for (const word of words) {
+				if (y > height - margin) break;
+				const testLine = line ? `${line} ${word}` : word;
+				if (ctx.measureText(testLine).width > maxWidth && line) {
+					ctx.fillText(line, margin, y);
+					line = word;
+					y += lineHeight;
+				} else {
+					line = testLine;
+				}
+			}
+			if (line && y <= height - margin) {
+				ctx.fillText(line, margin, y);
+				y += lineHeight;
+			}
+			y += lineHeight * 0.4;
+		}
+	}
+
+	private drawError(ctx: CanvasRenderingContext2D, width: number, message: string): void {
+		ctx.fillStyle = '#999';
+		ctx.font = '15px Outfit, sans-serif';
+		ctx.fillText(message, 20, 40);
 	}
 }
