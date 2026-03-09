@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getParser } from './book-parser';
-import { embed } from './embeddings';
+import { embed, initEmbeddings } from './embeddings';
 import { insertChunks, updateBook, getBook, getLastIndexedPage } from '$lib/db';
 import type { Chunk } from '$lib/db/schema';
 
@@ -66,6 +66,9 @@ export async function indexBook(
 	const start = Date.now();
 	const book = getBook(bookId);
 	if (!book) throw new Error('Book not found');
+
+	// Init embeddings model before indexing
+	await initEmbeddings();
 
 	const parser = getParser(book.filePath);
 	let totalChunks = 0;
