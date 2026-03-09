@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getParser, getExtension } from '$lib/modules/book-parser';
 import { insertBook, updateBook, deleteBook, getBooks, getBook } from '$lib/db';
 import { indexBook } from '$lib/modules/indexer';
+import { indexingProgress } from '$lib/stores/indexing';
 import type { Book } from '$lib/db/schema';
 
 // In-memory file storage (for browser — no filesystem access)
@@ -49,8 +50,13 @@ export async function addBook(file: File): Promise<Book> {
 	// Start indexing in background
 	setTimeout(() => {
 		indexBook(bookId, fileData, (progress) => {
-			// Progress callback — stores will be updated by polling
-		}).catch(console.error);
+			indexingProgress.set(progress);
+		}).then(() => {
+			indexingProgress.set(null);
+		}).catch((e) => {
+			console.error(e);
+			indexingProgress.set(null);
+		});
 	}, 100);
 
 	return book;

@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { initDb } from '$lib/db';
 	import { dbReady } from '$lib/stores/library';
+	import IndexingBanner from '$lib/components/IndexingBanner.svelte';
 
 	let initialized = false;
 	let initError = '';
@@ -46,6 +47,8 @@
 		<main class:with-tabs={!isReader}>
 			<slot />
 		</main>
+
+		<IndexingBanner />
 
 		{#if !isReader}
 			<nav class="tab-bar">

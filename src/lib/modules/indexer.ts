@@ -14,6 +14,16 @@ export interface IndexResult {
 	error?: string;
 }
 
+export interface IndexProgress {
+	bookId: string;
+	bookTitle: string;
+	currentPage: number;
+	totalPages: number;
+	chunks: number;
+	percent: number;
+	stage: 'loading_model' | 'indexing' | 'done' | 'error';
+}
+
 let cancelled = false;
 
 export function cancelIndexing() {
@@ -60,7 +70,7 @@ function splitIntoChunks(text: string): string[] {
 export async function indexBook(
 	bookId: string,
 	fileData: ArrayBuffer,
-	onProgress?: (progress: number) => void
+	onProgress?: (progress: IndexProgress) => void
 ): Promise<IndexResult> {
 	cancelled = false;
 	const start = Date.now();
@@ -68,6 +78,7 @@ export async function indexBook(
 	if (!book) throw new Error('Book not found');
 
 	// Init embeddings model before indexing
+	onProgress?.({ bookId, bookTitle: book.title, currentPage: 0, totalPages: book.totalPages, chunks: 0, percent: 0, stage: 'loading_model' });
 	await initEmbeddings();
 
 	const parser = getParser(book.filePath);
@@ -125,9 +136,9 @@ export async function indexBook(
 				skippedPages++;
 			}
 
-			const progress = page / book.totalPages;
-			updateBook(bookId, { indexingProgress: progress });
-			onProgress?.(progress);
+			const percent = Math.round((page / book.totalPages) * 100);
+			updateBook(bookId, { indexingProgress: page / book.totalPages });
+			onProgress?.({ bookId, bookTitle: book.title, currentPage: page, totalPages: book.totalPages, chunks: totalChunks, percent, stage: 'indexing' });
 
 			// Yield to UI
 			await new Promise(r => setTimeout(r, 0));
