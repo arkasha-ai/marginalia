@@ -64,21 +64,24 @@
 				updateReadingPosition(book.id, $currentPage);
 			});
 
-			// Re-attach touch/click listeners on each render (epubjs recreates iframe on spine navigation)
+			// Use epubjs built-in click event — fires once, no iframe double-firing
+			epubRendition.on('click', (e: MouseEvent) => {
+				const width = epubDiv?.clientWidth || 300;
+				if (e.clientX < width * 0.25) prevPage();
+				else if (e.clientX > width * 0.75) nextPage();
+				else $toolbarVisible = !$toolbarVisible;
+			});
+
+			// Swipe only via iframe touch (re-attach each render, no click handler here)
 			let iframeAbortController: AbortController | null = null;
 			epubRendition.on('rendered', (_section: any, _view: any) => {
-				// Abort previous listeners (old iframe/document)
-				if (iframeAbortController) {
-					iframeAbortController.abort();
-				}
+				if (iframeAbortController) iframeAbortController.abort();
 				iframeAbortController = new AbortController();
 				const signal = iframeAbortController.signal;
-
 				try {
 					const iframe = epubDiv?.querySelector('iframe');
 					if (!iframe?.contentDocument) return;
 					const doc = iframe.contentDocument;
-
 					let iframeTouchStartX = 0;
 					doc.addEventListener('touchstart', (e: Event) => {
 						iframeTouchStartX = (e as TouchEvent).touches[0].clientX;
@@ -89,14 +92,7 @@
 							diff < 0 ? nextPage() : prevPage();
 						}
 					}, { passive: true, signal });
-					doc.addEventListener('click', (e: Event) => {
-						const me = e as MouseEvent;
-						const width = (iframe as HTMLIFrameElement).clientWidth || 300;
-						if (me.clientX < width * 0.25) prevPage();
-						else if (me.clientX > width * 0.75) nextPage();
-						else $toolbarVisible = !$toolbarVisible;
-					}, { signal });
-				} catch { /* cross-origin iframe, skip */ }
+				} catch { /* cross-origin */ }
 			});
 		} catch (e) {
 			console.error('EPUB rendition error:', e);
