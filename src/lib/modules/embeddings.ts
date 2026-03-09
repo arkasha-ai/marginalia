@@ -5,10 +5,8 @@ env.localModelPath = '/models/';
 env.allowLocalModels = true;
 env.allowRemoteModels = false;
 
-// Use plain WASM backend — disable WebGPU/JSEP to avoid dynamic import issues
+// Point ONNX Runtime to local WASM files (copied from node_modules by download-model.sh)
 env.backends.onnx.wasm.wasmPaths = '/ort-wasm/';
-// @ts-ignore
-env.backends.onnx.wasm.numThreads = 1;
 
 let extractor: FeatureExtractionPipeline | null = null;
 let loading = false;
@@ -22,8 +20,7 @@ export async function initEmbeddings(): Promise<void> {
 	loadPromise = (async () => {
 		try {
 			extractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-small', {
-				dtype: 'q8' as any,
-				device: 'wasm' as any  // force plain WASM, avoid WebGPU/JSEP dynamic imports
+				dtype: 'q8' as any
 			});
 			loading = false;
 		} catch (e) {

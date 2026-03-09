@@ -4,11 +4,16 @@ import { defineConfig } from 'vite';
 export default defineConfig({
 	plugins: [sveltekit()],
 	optimizeDeps: {
-		exclude: ['sql.js']
+		exclude: ['sql.js', '@huggingface/transformers', 'onnxruntime-web']
 	},
 	server: {
+		headers: {
+			// Required for SharedArrayBuffer (ONNX threading)
+			'Cross-Origin-Opener-Policy': 'same-origin',
+			'Cross-Origin-Embedder-Policy': 'require-corp'
+		},
 		fs: {
-			allow: ['static']
+			allow: ['static', 'node_modules']
 		}
 	}
 });
