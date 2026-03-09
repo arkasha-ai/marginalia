@@ -74,14 +74,14 @@
 					const iframe = epubDiv?.querySelector('iframe');
 					if (!iframe?.contentDocument) return;
 					const doc = iframe.contentDocument;
-					const iframeWidth = iframe.clientWidth || epubDiv?.clientWidth || 300;
-
 					// Click navigation (capture phase = before epubjs handles it)
+					// iframeWidth read at click time, not at render time (iframe may not be laid out yet)
 					doc.addEventListener('click', (e: Event) => {
 						const me = e as MouseEvent;
 						e.stopPropagation();
-						if (me.clientX < iframeWidth * 0.25) prevPage();
-						else if (me.clientX > iframeWidth * 0.75) nextPage();
+						const w = iframe.clientWidth || epubDiv?.clientWidth || 300;
+						if (me.clientX < w * 0.25) prevPage();
+						else if (me.clientX > w * 0.75) nextPage();
 						else $toolbarVisible = !$toolbarVisible;
 					}, { capture: true, signal });
 
