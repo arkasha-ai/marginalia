@@ -9,6 +9,7 @@
 
 	let book: Book | null = null;
 	let error = '';
+	let initialPage: number | null = null;
 
 	$: bookId = $page.params.bookId;
 
@@ -17,6 +18,14 @@
 		book = getBookById(bookId);
 		if (!book) {
 			error = 'Книга не найдена';
+		} else {
+			const pageParam = $page.url.searchParams.get('page');
+			if (pageParam) {
+				const parsed = parseInt(pageParam, 10);
+				if (!isNaN(parsed) && parsed >= 1 && parsed <= book.totalPages) {
+					initialPage = parsed;
+				}
+			}
 		}
 	});
 </script>
@@ -27,7 +36,7 @@
 		<a href="/library">← В библиотеку</a>
 	</div>
 {:else if book}
-	<BookViewer {book} />
+	<BookViewer {book} {initialPage} />
 {:else}
 	<div class="loading-state">
 		<p>Загрузка...</p>

@@ -24,3 +24,11 @@ for f in "$ORT_SRC"/*.wasm "$ORT_SRC"/*.mjs; do
   [ -f "$f" ] && cp "$f" "$ORT_DEST/" && echo "copied: $(basename $f)"
 done
 echo "ONNX Runtime WASM files ready at $ORT_DEST"
+
+# Copy sql.js WASM files for local loading (instead of CDN)
+SQL_DEST="static/sql"
+mkdir -p "$SQL_DEST"
+echo "Copying sql.js WASM files..."
+cp node_modules/sql.js/dist/sql-wasm.js "$SQL_DEST/sql-wasm.js" && echo "copied: sql-wasm.js"
+cp node_modules/sql.js/dist/sql-wasm.wasm "$SQL_DEST/sql-wasm.wasm" && echo "copied: sql-wasm.wasm"
+echo "sql.js WASM files ready at $SQL_DEST"

@@ -8,3 +8,4 @@ build/
 static/models/
 
 static/ort-wasm/
+static/sql/

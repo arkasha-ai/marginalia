@@ -46,11 +46,11 @@ export function scheduleSave(delayMs = 2000): void {
 export async function initDb(): Promise<void> {
 	if (db) return;
 	
-	// Load sql.js via CDN script tag for reliable browser compatibility
+	// Load sql.js from local files (copied from node_modules by download-model.sh)
 	await new Promise<void>((resolve, reject) => {
 		if ((window as any).initSqlJs) { resolve(); return; }
 		const script = document.createElement('script');
-		script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js';
+		script.src = '/sql/sql-wasm.js';
 		script.onload = () => resolve();
 		script.onerror = () => reject(new Error('Failed to load sql.js'));
 		document.head.appendChild(script);
@@ -58,7 +58,7 @@ export async function initDb(): Promise<void> {
 
 	const initSqlJs = (window as any).initSqlJs;
 	const SQL = await initSqlJs({
-		locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm'
+		locateFile: () => '/sql/sql-wasm.wasm'
 	});
 	
 	const saved = await loadFromIdb();

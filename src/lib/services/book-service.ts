@@ -12,9 +12,30 @@ export function getFileData(filePath: string): ArrayBuffer | undefined {
 	return fileStore.get(filePath);
 }
 
+/**
+ * Get file data, falling back to DB if not in memory.
+ * Also populates the in-memory store for subsequent reads.
+ */
+export function getFileDataWithFallback(bookId: string, filePath: string): ArrayBuffer | undefined {
+	let data = fileStore.get(filePath);
+	if (data) return data;
+
+	// Fallback: load from DB
+	const dbData = getBookFileData(bookId);
+	if (dbData) {
+		fileStore.set(filePath, dbData);
+		return dbData;
+	}
+	return undefined;
+}
+
 export async function addBook(file: File): Promise<Book> {
-	const fileData = await file.arrayBuffer();
 	const ext = getExtension(file.name);
+	if (ext !== 'pdf') {
+		throw new Error('Формат EPUB/FB2 пока не поддерживается, скоро добавим');
+	}
+
+	const fileData = await file.arrayBuffer();
 	const parser = getParser(file.name);
 
 	const metadata = await parser.getMetadata(fileData);

@@ -1,22 +1,38 @@
 import type { BookParser, BookMetadata, PageText } from './base';
 import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 // Use CDN worker matching the installed version — no version mismatch
 if (typeof window !== 'undefined') {
 	pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 }
 
-export class PdfBookParser implements BookParser {
-	private docCache = new WeakMap<ArrayBuffer, any>();
+// Cache parsed PDF documents by bookId to avoid re-parsing on every page turn
+const pdfDocCache = new Map<string, PDFDocumentProxy>();
 
+export class PdfBookParser implements BookParser {
 	canParse(extension: string): boolean {
 		return extension === 'pdf';
 	}
 
-	private async getDoc(fileData: ArrayBuffer) {
-		// Can't use WeakMap with ArrayBuffer reliably, just load each time
+	private async getDoc(fileData: ArrayBuffer, cacheKey?: string): Promise<PDFDocumentProxy> {
+		if (cacheKey) {
+			const cached = pdfDocCache.get(cacheKey);
+			if (cached) return cached;
+		}
 		const doc = await pdfjsLib.getDocument({ data: fileData.slice(0) }).promise;
+		if (cacheKey) {
+			pdfDocCache.set(cacheKey, doc);
+		}
 		return doc;
+	}
+
+	static clearCache(bookId: string): void {
+		const doc = pdfDocCache.get(bookId);
+		if (doc) {
+			doc.destroy();
+			pdfDocCache.delete(bookId);
+		}
 	}
 
 	async getMetadata(fileData: ArrayBuffer): Promise<BookMetadata> {
@@ -33,8 +49,8 @@ export class PdfBookParser implements BookParser {
 		};
 	}
 
-	async extractText(fileData: ArrayBuffer, pageNumber: number): Promise<PageText> {
-		const doc = await this.getDoc(fileData);
+	async extractText(fileData: ArrayBuffer, pageNumber: number, bookId?: string): Promise<PageText> {
+		const doc = await this.getDoc(fileData, bookId);
 		const page = await doc.getPage(pageNumber);
 		const textContent = await page.getTextContent();
 		const viewport = page.getViewport({ scale: 1.0 });
@@ -59,8 +75,8 @@ export class PdfBookParser implements BookParser {
 		return { fullText, items };
 	}
 
-	async renderPage(fileData: ArrayBuffer, pageNumber: number, canvas: HTMLCanvasElement, scale = 1.5): Promise<void> {
-		const doc = await this.getDoc(fileData);
+	async renderPage(fileData: ArrayBuffer, pageNumber: number, canvas: HTMLCanvasElement, scale = 1.5, bookId?: string): Promise<void> {
+		const doc = await this.getDoc(fileData, bookId);
 		const page = await doc.getPage(pageNumber);
 		const viewport = page.getViewport({ scale });
 		canvas.width = viewport.width;

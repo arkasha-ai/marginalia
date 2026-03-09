@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import BookCard from '$lib/components/BookCard.svelte';
 	import { books, dbReady } from '$lib/stores/library';
+	import { indexingProgress } from '$lib/stores/indexing';
 	import { getLibrary, addBook, removeBook, openBook, resumeIndexing } from '$lib/services/book-service';
 
 	let fileInput: HTMLInputElement;
@@ -15,11 +16,18 @@
 		}
 	}
 
+	// Reload books when indexing progress changes (null = finished)
+	const unsubIndexing = indexingProgress.subscribe(() => {
+		loadBooks();
+	});
+
 	onMount(() => {
 		loadBooks();
 		resumeIndexing(); // restart any interrupted indexing
-		const interval = setInterval(loadBooks, 2000);
-		return () => clearInterval(interval);
+	});
+
+	onDestroy(() => {
+		unsubIndexing();
 	});
 
 	$: if ($dbReady) loadBooks();
@@ -88,7 +96,7 @@
 	<input
 		bind:this={fileInput}
 		type="file"
-		accept=".pdf,.epub,.fb2"
+		accept=".pdf"
 		on:change={handleFileSelect}
 		style="display: none"
 	/>

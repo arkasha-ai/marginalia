@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { getParser } from '$lib/modules/book-parser';
-	import { getFileData } from '$lib/services/book-service';
+	import { getFileDataWithFallback } from '$lib/services/book-service';
 	import { updateReadingPosition } from '$lib/services/book-service';
 	import { createHighlight, getForPage } from '$lib/services/highlight-service';
 	import type { Book, Highlight } from '$lib/db/schema';
 	import { currentPage, totalPages, toolbarVisible, isRendering } from '$lib/stores/reader';
 
 	export let book: Book;
+	export let initialPage: number | null = null;
 
 	let canvas: HTMLCanvasElement;
 	let container: HTMLDivElement;
@@ -18,11 +19,11 @@
 	let showNoteModal = false;
 	let noteText = '';
 
-	$currentPage = book.lastReadPage;
+	$currentPage = initialPage ?? book.lastReadPage;
 	$totalPages = book.totalPages;
 
 	const parser = getParser(book.filePath);
-	const fileData = getFileData(book.filePath);
+	const fileData = getFileDataWithFallback(book.id, book.filePath);
 
 	async function renderCurrentPage() {
 		if (!canvas || !fileData) return;
@@ -30,7 +31,7 @@
 		try {
 			const containerWidth = container?.clientWidth || 800;
 			const scale = containerWidth / 612 * 1.5; // 612 is default PDF page width
-			await parser.renderPage(fileData, $currentPage, canvas, scale);
+			await parser.renderPage(fileData, $currentPage, canvas, scale, book.id);
 			highlights = getForPage(book.id, $currentPage);
 		} catch (e) {
 			console.error('Render error:', e);
