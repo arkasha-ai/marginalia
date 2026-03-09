@@ -253,10 +253,10 @@
 		class="content-area"
 		role="button"
 		tabindex="0"
-		on:click={handleCanvasClick}
+		on:click={isEpub ? undefined : handleCanvasClick}
 		on:mouseup={handleSelection}
-		on:touchstart={handleTouchStart}
-		on:touchend={handleTouchEnd}
+		on:touchstart={isEpub ? undefined : handleTouchStart}
+		on:touchend={isEpub ? undefined : handleTouchEnd}
 	>
 		{#if $isRendering}
 			<div class="loading-overlay"><div class="spinner"></div></div>
