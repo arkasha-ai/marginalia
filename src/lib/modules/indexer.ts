@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getParser } from './book-parser';
-import { embed, initEmbeddings } from './embeddings';
+import { embed, initEmbeddings, disposeEmbeddings } from './embeddings';
 import { insertChunks, updateBook, getBook, getLastIndexedPage } from '$lib/db';
 import type { Chunk } from '$lib/db/schema';
 
@@ -29,6 +29,19 @@ let cancelled = false;
 export function cancelIndexing() {
 	cancelled = true;
 }
+
+/** Detect iOS for memory-conservative settings */
+function isIOS(): boolean {
+	if (typeof navigator === 'undefined') return false;
+	return /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// Memory-aware batching: much more conservative on iOS WebView
+const IOS = typeof navigator !== 'undefined' && isIOS();
+const BATCH_SIZE = IOS ? 1 : 3;           // 1 chunk at a time on iOS
+const BATCH_PAUSE_MS = IOS ? 300 : 150;   // longer pause for GC on iOS
+const PAGE_PAUSE_MS = IOS ? 200 : 50;     // longer pause between pages
 
 function splitIntoChunks(text: string): string[] {
 	if (!text.trim()) return [];
@@ -67,6 +80,11 @@ function splitIntoChunks(text: string): string[] {
 	return chunks.filter(c => c.trim().length > 10);
 }
 
+/** Pause to yield to GC and UI */
+function pause(ms: number): Promise<void> {
+	return new Promise(r => setTimeout(r, ms));
+}
+
 export async function indexBook(
 	bookId: string,
 	fileData: ArrayBuffer,
@@ -77,7 +95,7 @@ export async function indexBook(
 	const book = getBook(bookId);
 	if (!book) throw new Error('Book not found');
 
-	// Init embeddings model before indexing
+	// Init embeddings model (loads in Worker if available)
 	onProgress?.({ bookId, bookTitle: book.title, currentPage: 0, totalPages: book.totalPages, chunks: 0, percent: 0, stage: 'loading_model' });
 	await initEmbeddings();
 
@@ -108,6 +126,7 @@ export async function indexBook(
 				const textChunks = splitIntoChunks(pageText.fullText);
 				const chunksToInsert: Omit<Chunk, 'createdAt'>[] = [];
 
+				// Process chunks in small batches with pauses
 				for (let i = 0; i < textChunks.length; i++) {
 					let embedding: Float32Array | null = null;
 					try {
@@ -126,6 +145,11 @@ export async function indexBook(
 						charOffsetStart: null,
 						charOffsetEnd: null
 					});
+
+					// Pause every BATCH_SIZE chunks to let iOS reclaim memory
+					if ((i + 1) % BATCH_SIZE === 0) {
+						await pause(BATCH_PAUSE_MS);
+					}
 				}
 
 				if (chunksToInsert.length > 0) {
@@ -140,11 +164,15 @@ export async function indexBook(
 			updateBook(bookId, { indexingProgress: page / book.totalPages });
 			onProgress?.({ bookId, bookTitle: book.title, currentPage: page, totalPages: book.totalPages, chunks: totalChunks, percent, stage: 'indexing' });
 
-			// Yield to UI
-			await new Promise(r => setTimeout(r, 0));
+			// Yield between pages
+			await pause(PAGE_PAUSE_MS);
 		}
 
 		updateBook(bookId, { indexingStatus: 'completed', indexingProgress: 1 });
+
+		// Free worker memory after indexing completes
+		disposeEmbeddings();
+
 		return {
 			bookId, totalChunks, totalPages: book.totalPages,
 			skippedPages, durationMs: Date.now() - start,

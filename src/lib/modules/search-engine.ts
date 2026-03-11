@@ -1,4 +1,4 @@
-import { embed } from './embeddings';
+import { embed, initEmbeddings } from './embeddings';
 import { getAllChunksWithEmbeddings, getHighlights } from '$lib/db';
 
 export interface SearchResult {
@@ -35,6 +35,9 @@ export async function search(
 	const start = Date.now();
 	const { minScore = 0.3, maxHighlights = 25, maxChunks = 25 } = options;
 
+	// Ensure embeddings model is loaded (may have been disposed after indexing)
+	await initEmbeddings();
+
 	// Compute query embedding
 	const queryEmbedding = await embed(query, 'query');
 
@@ -63,7 +66,6 @@ export async function search(
 	const chunkResults: SearchResult[] = [];
 
 	for (const result of scored) {
-		// Check if this chunk overlaps with any highlight
 		const matchingHighlight = allHighlights.find(
 			h => h.bookId === result.bookId && h.pageNumber === result.pageNumber &&
 				result.text.includes(h.text.slice(0, 50))
