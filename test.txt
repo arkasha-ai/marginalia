@@ -1,0 +1,49 @@
+`UIScene` lifecycle will soon be required. Failure to adopt will result in an assert in the future.
+Reading from public effective user settings.
+Could not create a sandbox extension for '/var/containers/Bundle/Application/A7FE0C26-8C20-43EE-BA4C-B5C5DF24CBD5/App.app'
+⚡️  Loading app at capacitor://localhost...
+WebContent[752] Unable to hide query parameters from script (missing data)
+⚡️  WebView loaded
+WebContent[752] xpc_user_sessions_get_foreground_uid() failed with error 1 - Operation not permitted
+59638328 Plugin query method called
+(501) Invalidation handler invoked, clearing connection
+(501) personaAttributesForPersonaType for type:0 failed with error Error Domain=NSCocoaErrorDomain Code=4099 "The connection to service named com.apple.mobile.usermanagerd.xpc was invalidated from this process." UserInfo={NSDebugDescription=The connection to service named com.apple.mobile.usermanagerd.xpc was invalidated from this process.}
+LaunchServices: store (null) or url (null) was nil: Error Domain=NSOSStatusErrorDomain Code=-54 "process may not map database" UserInfo={_LSLine=75, _LSFunction=_LSServer_GetServerStoreForConnectionWithCompletionHandler, _LSFile=LSDReadService.mm, NSDebugDescription=process may not map database}
+Attempt to map database failed: permission was denied. This attempt will not be retried.
+Failed to initialize client context with error Error Domain=NSOSStatusErrorDomain Code=-54 "process may not map database" UserInfo={_LSLine=75, _LSFunction=_LSServer_GetServerStoreForConnectionWithCompletionHandler, _LSFile=LSDReadService.mm, NSDebugDescription=process may not map database}
+Failed to associate thumbnails for picked URL file:///private/var/mobile/Containers/Shared/AppGroup/BFC45D72-0F81-4CF5-87FF-7A9F275AF7F5/File%20Provider%20Storage/Ptica_Aleksei_General_Karamba_Na_puti_k_vlasti_(SI)_Litmir_club_962868_8fea8.epub with the Inbox copy file:///private/var/mobile/Containers/Data/Application/971F9C1B-9DCA-436B-B423-97571DFA3553/tmp/com.jakeberrimor.marginalia-Inbox/Ptica_Aleksei_General_Karamba_Na_puti_k_vlasti_(SI)_Litmir_club_962868_8fea8.epub: Error Domain=QLThumbnailErrorDomain Code=102 "(null)" UserInfo={NSUnderlyingError=0x117761050 {Error Domain=GSLibraryErrorDomain Code=3 "Generation not found" UserInfo={NSDescription=Generation not found}}}
+WebContent[752] xpc_user_sessions_get_foreground_uid() failed with error 1 - Operation not permitted
+WebContent[752] Failed to get the icon cache path with error: Error Domain=NSCocoaErrorDomain Code=4099 UserInfo={NSDebugDescription=<private>}
+WebContent[752] XPC connection to containermanagerd invalidated. Retry attempt 1 of 6
+WebContent[752] XPC connection to containermanagerd invalidated. Retry attempt 2 of 6
+WebContent[752] XPC connection to containermanagerd invalidated. Retry attempt 3 of 6
+WebContent[752] XPC connection to containermanagerd invalidated. Retry attempt 4 of 6
+WebContent[752] XPC connection to containermanagerd invalidated. Retry attempt 5 of 6
+WebContent[752] XPC connection to containermanagerd invalidated. Retry attempt 6 of 6
+WebContent[752] _container_query_get_result_at_index: error = 2→(51) XPC_INVALID_REPLY;
+WebContent[752] container_system_group_path_for_identifier: error = ((container_error_t)51) XPC_INVALID_REPLY
+WebContent[752] Failed to get cache path with error: 51.
+WebContent[752] Service "com.apple.CARenderServer" failed bootstrap look up (1) - (os/kern) invalid address
+WebContent[752] Failed to initialize application enviroment context
+WebContent[752] Failed to load a device context.
+WebContent[752] Failed to initialize application enviroment context
+WebContent[752] Failed to load a device context.
+WebContent[752] Failed to generate image for <private> - <private>. Error: Error Domain=NSCocoaErrorDomain Code=4099 UserInfo={NSDebugDescription=<private>}
+WebContent[752] Failed to generate image for <private> - <private>. Error: Error Domain=NSCocoaErrorDomain Code=4099 UserInfo={NSDebugDescription=<private>}
+⚡️  [warn] - Unable to add response to browser cache: TypeError: Request url is not HTTP/HTTPS.
+⚡️  [warn] - Unable to add response to browser cache: TypeError: Request url is not HTTP/HTTPS.
+⚡️  [warn] - Unable to add response to browser cache: TypeError: Request url is not HTTP/HTTPS.
+⚡️  [warn] - Unable to add response to browser cache: TypeError: Request url is not HTTP/HTTPS.
+0x1120f8100 - [PID=752] WebProcessProxy::didClose: (web process 0 crash)
+0x1120f8100 - [PID=752] WebProcessProxy::processDidTerminateOrFailedToLaunch: reason=Crash
+Error acquiring assertion: <Error Domain=RBSServiceErrorDomain Code=1 "((target is not running or doesn't have entitlement com.apple.developer.web-browser-engine.rendering AND target is not running or doesn't have entitlement com.apple.developer.web-browser-engine.networking AND target is not running or doesn't have entitlement com.apple.developer.web-browser-engine.webcontent))" UserInfo={NSLocalizedFailureReason=((target is not running or doesn't have entitlement com.apple.developer.web-browser-engine.rendering AND target is not running or doesn't have entitlement com.apple.developer.web-browser-engine.networking AND target is not running or doesn't have entitlement com.apple.developer.web-browser-engine.webcontent))}>
+0x112154240 - ProcessAssertion::acquireSync Failed to acquire RBS assertion 'XPCConnectionTerminationWatchdog' for process with PID=752, error: (null)
+0x117440718 - [pageProxyID=7, webPageID=8, PID=752] WebPageProxy::processDidTerminate: (pid 752), reason=Crash
+0x117440718 - [pageProxyID=7, webPageID=8, PID=752] WebPageProxy::dispatchProcessDidTerminate: reason=Crash
+⚡️  WebView process terminated
+Failed to terminate process: Error Domain=com.apple.extensionKit.errorDomain Code=18 "(null)" UserInfo={NSUnderlyingError=0x117760db0 {Error Domain=RBSRequestErrorDomain Code=3 "No such process found" UserInfo={NSLocalizedFailureReason=No such process found}}}
+Failed to terminate process: Error Domain=com.apple.extensionKit.errorDomain Code=18 "(null)" UserInfo={NSUnderlyingError=0x117763150 {Error Domain=RBSRequestErrorDomain Code=3 "No such process found" UserInfo={NSLocalizedFailureReason=No such process found}}}
+0x1121241e0 - GPUProcessProxy::gpuProcessExited: reason=IdleExit
+0x1120f8640 - [PID=0] WebProcessProxy::gpuProcessExited: reason=IdleExit
+⚡️  WebView loaded
+WebContent[762] xpc_user_sessions_get_foreground_uid() failed with error 1 - Operation not permitted
