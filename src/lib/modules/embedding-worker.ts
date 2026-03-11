@@ -1,6 +1,6 @@
 /// Web Worker for ONNX embeddings — runs in separate thread to avoid OOM in main WKWebView process
 
-import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
+import { pipeline, env, type FeatureExtractionPipeline } from '@xenova/transformers';
 
 // Serve model from our own static files — no HuggingFace dependency
 env.localModelPath = '/models/';
@@ -8,14 +8,16 @@ env.allowLocalModels = true;
 env.allowRemoteModels = false;
 
 // Point ONNX Runtime to local WASM files
-env.backends.onnx.wasm.wasmPaths = '/ort-wasm/';
+try { env.backends.onnx.wasm.wasmPaths = '/ort-wasm/'; } catch {
+	// v2 may not have this path
+}
 
 let extractor: FeatureExtractionPipeline | null = null;
 
 async function initModel(): Promise<void> {
 	if (extractor) return;
 	extractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-small', {
-		dtype: 'q8' as any
+		quantized: true
 	});
 }
 

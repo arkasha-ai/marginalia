@@ -3,7 +3,7 @@
  * Falls back to main-thread if Worker unavailable (e.g. old browsers).
  */
 
-import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
+import { pipeline, env, type FeatureExtractionPipeline } from '@xenova/transformers';
 
 let worker: Worker | null = null;
 let msgId = 0;
@@ -70,9 +70,12 @@ async function initFallback(): Promise<void> {
 	env.localModelPath = '/models/';
 	env.allowLocalModels = true;
 	env.allowRemoteModels = false;
-	env.backends.onnx.wasm.wasmPaths = '/ort-wasm/';
+	// v2: set WASM paths (v2 uses env.backends.onnx.wasm or direct ort config)
+	try { env.backends.onnx.wasm.wasmPaths = '/ort-wasm/'; } catch {
+		// v2 may not have this path — WASM files should resolve from default location
+	}
 	fallbackExtractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-small', {
-		dtype: 'q8' as any
+		quantized: true
 	});
 }
 
@@ -86,16 +89,6 @@ function isIOS(): boolean {
 export async function initEmbeddings(): Promise<void> {
 	if (workerReady || fallbackExtractor) return;
 	loading = true;
-
-	// On iOS: do NOT load ONNX at all — not even in a Worker.
-	// Workers share the same WebContent process memory limit (~80-120MB on iOS).
-	// Loading ONNX WASM (~100MB) causes jetsam kill → WebContent crash.
-	// Chunks are stored without embeddings; search falls back to text-only.
-	if (isIOS()) {
-		console.warn('[embeddings] Skipping ONNX entirely on iOS to prevent OOM crash');
-		loading = false;
-		return;
-	}
 
 	try {
 		if (!workerFailed && (worker || tryCreateWorker())) {
