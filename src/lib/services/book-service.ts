@@ -57,7 +57,11 @@ export async function addBook(file: File): Promise<Book> {
 	const metadata = await parser.getMetadata(fileData);
 	let coverDataUrl: string | null = null;
 	try {
-		coverDataUrl = await parser.generateCover(fileData);
+		// On iOS: skip cover generation to save memory during import.
+		// EPUB cover requires a second full parse of the file.
+		if (!isIOS()) {
+			coverDataUrl = await parser.generateCover(fileData);
+		}
 	} catch {
 		// Cover generation failed — ok
 	}

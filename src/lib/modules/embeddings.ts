@@ -87,6 +87,16 @@ export async function initEmbeddings(): Promise<void> {
 	if (workerReady || fallbackExtractor) return;
 	loading = true;
 
+	// On iOS: do NOT load ONNX at all — not even in a Worker.
+	// Workers share the same WebContent process memory limit (~80-120MB on iOS).
+	// Loading ONNX WASM (~100MB) causes jetsam kill → WebContent crash.
+	// Chunks are stored without embeddings; search falls back to text-only.
+	if (isIOS()) {
+		console.warn('[embeddings] Skipping ONNX entirely on iOS to prevent OOM crash');
+		loading = false;
+		return;
+	}
+
 	try {
 		if (!workerFailed && (worker || tryCreateWorker())) {
 			await sendToWorker('init');
@@ -99,14 +109,6 @@ export async function initEmbeddings(): Promise<void> {
 		workerFailed = true;
 		worker?.terminate();
 		worker = null;
-	}
-
-	// On iOS: do NOT load ONNX on main thread — it will OOM crash the WebContent process.
-	// Indexing will store chunks without embeddings; search falls back to text-only.
-	if (isIOS()) {
-		console.warn('[embeddings] Skipping main-thread fallback on iOS to prevent OOM');
-		loading = false;
-		return;
 	}
 
 	// Fallback to main thread (desktop only)
